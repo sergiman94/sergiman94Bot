@@ -11,6 +11,10 @@ var Twit = require('twit')
 var Bot = new Object();
 var idsWordFromDate = [];
 var request = require('request');
+const words = require('an-array-of-english-words')
+var fs = require('fs')
+var str = '';
+var play = require('play');
 
 
 var T = new Twit({
@@ -109,7 +113,11 @@ Bot.retweetFromWordFilter = function (word) {
                     if (err) {
                         console.log('Error retweeting');
                     } else {
+                        play.sound('./assets/Audio/anxious.mp3')
                         console.log('¡ Retweet Succesfully !')
+                        console.log(' ')
+                        console.log('------------------------------------------------')
+                        console.log(' ')
                     }
 
                 })
@@ -212,61 +220,75 @@ Bot.getRealTimeTweetsByWord = function (word) {
 
 }
 
-Bot.downloadImageFromLink = function (word) {
+/*
+    tweet random image from word
 
-    var randomPage = Math.floor(Math.random * 3);
+*/
 
+Bot.tweetUnsplashRandomImageFromWord = function (word) {
+
+    var randomPage = Math.floor(Math.random * 4);
+
+    /*
+        Conectamos a unsplash API, unsplash es una API que coomparte imagenes
+        en alta calidad, esta API permite consultar imagenes en base a una palabra,
+        para mas informacion ir a https://unsplash.com/documentation 
+    */
 
     var accesKey = '9e4768a0ce607defade1a5be59cb346ba2f862501a6e1e517226780f812c4ec9'
-    var apiUrl = `https://api.unsplash.com/search/photos?page=${randomPage}&query=minimal&client_id=${accesKey}`
+    var apiUrl = `https://api.unsplash.com/search/collections?page=1&query=${word}&client_id=${accesKey}`
 
+    // Hacemos la peticion al servidor 
     request({
         url: apiUrl
-    }, function (err, res) {
+    }, async function (err, res) {
         if (err) {
             console.log(err);
         } else {
+
+            // Tomamos el body de todos los datos
             var search = JSON.parse(res.body)
-            //console.log(search.results[1]);
-            var random = Math.floor(Math.random() * parseInt(search.results.length));
-            //console.log(random);
 
-            var uri = search.results[random]['urls']['regular']
+            // Creamos un numero random de acuerdo al tamaño de resultados
+            var random = Math.floor(Math.random() * parseInt(search["total"]));
 
-            var file_id = console.log(search.results[random]['id'])
+            // Tomamos la uri donde se encuentra la imagen 
+            
+            var previewPhotosLength = search.results[random]['preview_photos'].length
+            var previewPhotosRandom = Math.floor(Math.random() * parseInt(previewPhotosLength));
+            
+            var uri = search.results[random]['preview_photos'][previewPhotosRandom]['urls']['regular']
+            var str = `${search.results[random]['preview_photos'][previewPhotosRandom]['id']}.png`
+            var img = `./assets/images/${str}`;
 
-            Bot.downloadImage(uri, `${search.results[random]['id']}.png`, function(){
+            console.log(str);
+            console.log(img)
+
+            // Descargamos la imagen
+            Bot.downloadImage(uri, str, function () {
                 console.log('Image saved')
+                
             })
 
+            setTimeout(function () {Bot.postMedia(img, search.results[random]['preview_photos'][previewPhotosRandom]['id']);}, 8000);
+
+    
+            
 
         }
     })
 
-    //curl https://api.unsplash.com/search/photos?query=minimal&client_id=9e4768a0ce607defade1a5be59cb346ba2f862501a6e1e517226780f812c4ec9
 
-
-    // var fs = require('fs'),
-    //     request = require('request');
-
-    // var download = function (uri, filename, callback) {
-    //     request.head(uri, function (err, res, body) {
-    //         console.log('content-type:', res.headers['content-type']);
-    //         console.log('content-length:', res.headers['content-length']);
-
-    //         request(uri).pipe(fs.createWriteStream(`./assets/${filename}`)).on('close', callback);
-    //     });
-    // };
-
-    // download('https://www.google.com/images/srpr/logo3w.png', 'google.png', function () {
-    //     console.log('done');
-    // });
 
 }
 
+/*
+    funcion que descarga una imagen dado un uri y el nombre del archivo
+*/
+
 Bot.downloadImage = function (uri, filename, callback) {
 
-    var fs = require('fs')
+
 
     request.head(uri, function (err, res, body) {
         console.log('content-type:', res.headers['content-type']);
@@ -275,5 +297,171 @@ Bot.downloadImage = function (uri, filename, callback) {
         request(uri).pipe(fs.createWriteStream(`./assets/${filename}`)).on('close', callback);
     });
 }
+
+/*
+    funcion que postea una imagen de acuerdo al directorio
+    donde se encuentre y la descripcion en texto de la imagen
+*/
+
+Bot.postMedia = function (path_of_image, alt_text) {
+
+    var b64Content = fs.readFileSync(path_of_image, {
+        encoding: 'base64'
+    })
+
+
+    // first we must post the media to Twitter
+    T.post('media/upload', {
+        media_data: b64Content
+    }, function (err, data, response) {
+        // now we can assign alt text to the media, for use by screen readers and
+        // other text-based presentations and interpreters
+        var mediaIdStr = data.media_id_string
+        var altText = `${alt_text}`
+        var meta_params = {
+            media_id: mediaIdStr,
+            alt_text: {
+                text: altText
+            }
+        }
+
+        T.post('media/metadata/create', meta_params, function (err, data, response) {
+            if (!err) {
+                // now we can reference the media and post a tweet (media will attach to the tweet)
+                var params = {
+                    status: `${alt_text}`,
+                    media_ids: [mediaIdStr]
+                }
+
+                T.post('statuses/update', params, function (err, data, response) {
+
+                    if (err) {
+                        console.log('Error posting the image')
+                    } else {
+                        
+                        play.sound('./assets/Audio/anxious.mp3')
+                        console.log('Image posted !')
+                        console.log(' ')
+                        console.log('------------------------------------------------')
+                        console.log(' ')
+                    }
+
+                    //console.log(data)
+                })
+            }
+        })
+    })
+}
+
+
+Bot.tweetPexelRandomImageFromWord = function (word) {
+
+    var randomPage = Math.floor(Math.random * 15);
+    var re = new RegExp(word, 'i');
+    var funWords = words.filter(word => word.match(/^minimal/i));
+    //console.log(funWords)
+    
+    var s = Math.floor(Math.random() * funWords.length)
+    console.log(funWords[s])
+
+    /*
+        Conectamos a PEXEL API, PEXEL es una API que coomparte imagenes
+        en alta calidad, esta API permite consultar imagenes en base a una palabra,
+        para mas informacion ir a https://www.pexels.com/api/documentation/
+    */
+
+    var data = {
+        url : `http://api.pexels.com/v1/search?query=${funWords[s]}&per_page=100`,
+        headers: {
+          'Authorization': '563492ad6f91700001000001cf1c9e31775e4c2e911a7650b87eeddf'
+        } 
+     }
+
+    // Hacemos la peticion al servidor 
+    request(data, function (err, res) {
+        if (err) {
+            console.log(err);
+        } else {
+
+            // Tomamos el body de todos los datos
+            var search = JSON.parse(res.body)
+
+            var totalResults = search['total_results'];
+            var randomNumber = Math.floor(Math.random()* search['photos'].length);
+
+            var randomImage = search['photos'][randomNumber]
+ 
+            console.log('Total results: ' + totalResults + ' ' +'Taken: ' + search['photos'].length)
+
+            var uri = randomImage.src.medium
+            var str = `${randomImage.id}.png`
+            var img = `./assets/${str}`;
+
+            console.log(str);
+            console.log(img)
+
+            // Descargamos la imagen
+            Bot.downloadImage(uri, str, function () {
+                console.log('Image saved')
+                
+            })
+
+            setTimeout(function () {Bot.postMedia(img, `Photographer: ${randomImage.photographer}`);}, 8000);
+
+        }
+    })
+}
+
+
+Bot.tweetPinterestRandomImageFromWord = function () {
+
+    var randomPage = Math.floor(Math.random * 15);
+
+    /*
+        Conectamos a PEXEL API, PEXEL es una API que coomparte imagenes
+        en alta calidad, esta API permite consultar imagenes en base a una palabra,
+        para mas informacion ir a https://www.pexels.com/api/documentation/
+    */
+
+    var data = {
+        url : `https://api.pinterest.com/v1/`,
+        headers: {
+          'Authorization': '563492ad6f91700001000001cf1c9e31775e4c2e911a7650b87eeddf'
+        } 
+     }
+
+    // Hacemos la peticion al servidor 
+    request(data, function (err, res) {
+        if (err) {
+            console.log(err);
+        } else {
+
+            // Tomamos el body de todos los datos
+            var search = JSON.parse(res.body)
+
+            var totalResults = search['total_results'];
+
+            
+            // var randomImage = search['photos'][randomNumber]
+            // console.log(search['page'])
+            // console.log(randomImage.id)
+                
+
+            
+            // console.log(totalResults)
+            // console.log(search)
+            
+
+    
+            
+
+        }
+    })
+
+
+
+}
+
+
 
 exports.Bot = Bot;
