@@ -12,9 +12,10 @@ var T = new Twit({
 //
 //  tweet 'hello world!'
 //
-T.post('statuses/update', { status: 'hello world!' }, function(err, data, response) {
-  console.log(data)
-})
+
+// T.post('statuses/update', { status: 'hello world!' }, function(err, data, response) {
+//   console.log(data)
+// })
 
 //
 //  search twitter for all tweets containing the word 'banana' since July 11, 2011
